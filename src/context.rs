@@ -15,7 +15,6 @@ pub type NotificationDeletedResult =
     Result<(Uuid, bool, Option<Vec<JobState>>), (JobSchedulerError, Option<NotificationId>)>;
 
 pub struct Context {
-    pub job_activation_tx: Sender<Uuid>,
     pub notify_tx: Sender<(Uuid, JobState)>,
     pub job_create_tx: Sender<(JobStoredData, Arc<RwLock<Box<JobToRunAsync>>>)>,
     pub job_created_tx: Sender<Result<Uuid, (JobSchedulerError, Option<Uuid>)>>,
@@ -39,7 +38,6 @@ impl Context {
         job_code: Arc<RwLock<Box<dyn JobCode + Send + Sync>>>,
         notification_code: Arc<RwLock<Box<dyn NotificationCode + Send + Sync>>>,
     ) -> Self {
-        let (job_activation_tx, _job_activation_rx) = tokio::sync::broadcast::channel(200);
         let (notify_tx, _notify_rx) = tokio::sync::broadcast::channel(200);
         let (job_create_tx, _job_create_rx) = tokio::sync::broadcast::channel(200);
         let (job_created_tx, _job_created_rx) = tokio::sync::broadcast::channel(200);
@@ -51,7 +49,6 @@ impl Context {
         let (notify_deleted_tx, _notify_deleted_rx) = tokio::sync::broadcast::channel(200);
 
         Self {
-            job_activation_tx,
             notify_tx,
             job_create_tx,
             job_created_tx,
@@ -72,7 +69,6 @@ impl Context {
 impl Clone for Context {
     fn clone(&self) -> Self {
         Self {
-            job_activation_tx: self.job_activation_tx.clone(),
             notify_tx: self.notify_tx.clone(),
             job_create_tx: self.job_create_tx.clone(),
             job_created_tx: self.job_created_tx.clone(),
