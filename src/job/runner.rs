@@ -9,7 +9,7 @@ use crate::JobSchedulerError;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::mpsc::{Sender, Receiver};
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tracing::error;
 use uuid::Uuid;

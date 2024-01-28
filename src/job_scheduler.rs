@@ -128,7 +128,14 @@ impl JobsSchedulerLocked {
 
         {
             let mut runner = job_runner.write().await;
-            runner.init(&context, for_job_runner, job_activation_rx, notify_tx.clone()).await?;
+            runner
+                .init(
+                    &context,
+                    for_job_runner,
+                    job_activation_rx,
+                    notify_tx.clone(),
+                )
+                .await?;
         }
 
         {
