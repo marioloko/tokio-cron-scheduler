@@ -7,8 +7,8 @@ use crate::JobSchedulerError;
 use chrono::Utc;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::sync::mpsc::Sender as MpscSender;
+use tokio::sync::oneshot::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tracing::error;
 use uuid::Uuid;
@@ -35,12 +35,16 @@ impl Default for Scheduler {
 }
 
 impl Scheduler {
-    pub async fn init(&mut self, context: &Context, job_activation_tx: MpscSender<Uuid>) {
+    pub async fn init(
+        &mut self,
+        context: &Context,
+        job_activation_tx: MpscSender<Uuid>,
+        notify_tx: MpscSender<(Uuid, JobState)>,
+    ) {
         if self.inited {
             return;
         }
 
-        let notify_tx = context.notify_tx.clone();
         let job_delete_tx = context.job_delete_tx.clone();
         let shutdown = self.shutdown.clone();
         let metadata_storage = context.metadata_storage.clone();
@@ -168,7 +172,7 @@ impl Scheduler {
                     {
                         let tx = notify_tx.clone();
                         tokio::spawn(async move {
-                            if let Err(e) = tx.send((uuid, JobState::Scheduled)) {
+                            if let Err(e) = tx.send((uuid, JobState::Scheduled)).await {
                                 error!("Error sending notification activation {:?}", e);
                             }
                         });

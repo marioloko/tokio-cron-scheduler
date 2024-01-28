@@ -9,8 +9,7 @@ use crate::JobSchedulerError;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::broadcast::Sender;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::RwLock;
 use tracing::error;
 use uuid::Uuid;
@@ -35,7 +34,7 @@ impl JobRunner {
             {
                 let tx = tx_notify.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = tx.send((uuid, JobState::Started)) {
+                    if let Err(e) = tx.send((uuid, JobState::Started)).await {
                         error!("Error sending error listening for activation {:?}", e);
                     }
                 });
@@ -49,7 +48,7 @@ impl JobRunner {
                     let tx = tx_notify.clone();
                     tokio::spawn(async move {
                         v.await;
-                        if let Err(e) = tx.send((uuid, JobState::Done)) {
+                        if let Err(e) = tx.send((uuid, JobState::Done)).await {
                             error!("Error sending spawned task {:?}", e);
                         }
                     });
@@ -67,9 +66,9 @@ impl JobRunner {
         context: &Context,
         job_scheduler: JobsSchedulerLocked,
         job_activation_rx: Receiver<Uuid>,
+        notify_tx: Sender<(Uuid, JobState)>,
     ) -> Pin<Box<dyn Future<Output = Result<(), JobSchedulerError>> + Send>> {
         let job_code = context.job_code.clone();
-        let notify_tx = context.notify_tx.clone();
 
         Box::pin(async move {
             tokio::spawn(JobRunner::listen_for_activations(
