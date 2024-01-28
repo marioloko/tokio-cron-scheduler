@@ -99,6 +99,7 @@ impl JobsSchedulerLocked {
         } = self;
 
         let (job_activation_tx, job_activation_rx) = tokio::sync::mpsc::channel(200);
+        let (notify_tx, notify_rx) = tokio::sync::mpsc::channel(200);
 
         {
             let job_creator = job_creator.write().await;
@@ -122,17 +123,17 @@ impl JobsSchedulerLocked {
 
         {
             let mut notification_runner = notification_runner.write().await;
-            notification_runner.init(&context).await?;
+            notification_runner.init(&context, notify_rx).await?;
         }
 
         {
             let mut runner = job_runner.write().await;
-            runner.init(&context, for_job_runner, job_activation_rx).await?;
+            runner.init(&context, for_job_runner, job_activation_rx, notify_tx.clone()).await?;
         }
 
         {
             let mut scheduler = scheduler.write().await;
-            scheduler.init(&context, job_activation_tx).await;
+            scheduler.init(&context, job_activation_tx, notify_tx).await;
         }
 
         Ok(())

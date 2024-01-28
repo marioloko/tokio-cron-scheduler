@@ -9,7 +9,7 @@ use crate::JobSchedulerError;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::mpsc::Receiver;
 use tokio::sync::RwLock;
 use tracing::error;
 use uuid::Uuid;
@@ -25,8 +25,8 @@ impl NotificationRunner {
     ) {
         loop {
             let val = rx.recv().await;
-            if let Err(e) = val {
-                error!("Error receiving value {:?}", e);
+            if val.is_none() {
+                error!("The channel has been closed, no new job will be received");
                 break;
             }
             let (job_id, state) = val.unwrap();
@@ -68,14 +68,14 @@ impl NotificationRunner {
     pub fn init(
         &mut self,
         context: &Context,
+        notify_rx: Receiver<(Uuid, JobState)>,
     ) -> Pin<Box<dyn Future<Output = Result<(), JobSchedulerError>> + Send>> {
         let code = context.notification_code.clone();
-        let rx = context.notify_tx.subscribe();
         let storage = context.notification_storage.clone();
 
         Box::pin(async move {
             tokio::spawn(NotificationRunner::listen_for_activations(
-                code, rx, storage,
+                code, notify_rx, storage,
             ));
             Ok(())
         })
