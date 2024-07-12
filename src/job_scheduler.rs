@@ -12,7 +12,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-#[cfg(feature = "signal")]
+#[cfg(all(unix, feature = "signal"))]
 use tokio::signal::unix::SignalKind;
 use tokio::sync::RwLock;
 use tracing::{error, info};
@@ -300,8 +300,7 @@ impl JobsSchedulerLocked {
     }
 
     /// The `start` spawns a Tokio task where it loops. Every 500ms it
-    /// runs the tick method to increment any
-    /// any pending jobs.
+    /// runs the tick method to increment any pending jobs.
     ///
     /// ```rust,ignore
     /// if let Err(e) = sched.start().await {
@@ -362,10 +361,17 @@ impl JobsSchedulerLocked {
         }
         let mut r = self.context.metadata_storage.write().await;
         r.get(job_id).await.map(|v| {
-            v.map(|vv| vv.next_tick)
-                .filter(|t| *t != 0)
-                .map(|ts| NaiveDateTime::from_timestamp(ts as i64, 0))
-                .map(|ts| DateTime::from_utc(ts, Utc))
+            if let Some(vv) = v {
+                if vv.next_tick == 0 {
+                    return None;
+                }
+                match NaiveDateTime::from_timestamp_opt(vv.next_tick as i64, 0) {
+                    None => None,
+                    Some(ts) => Some(DateTime::from_naive_utc_and_offset(ts, Utc)),
+                }
+            } else {
+                None
+            }
         })
     }
 
@@ -387,7 +393,7 @@ impl JobsSchedulerLocked {
 
     ///
     /// Wait for a signal to shut the runtime down with
-    #[cfg(feature = "signal")]
+    #[cfg(all(unix, feature = "signal"))]
     pub fn shutdown_on_signal(&self, signal: SignalKind) {
         let mut l = self.clone();
         tokio::spawn(async move {

@@ -1,13 +1,12 @@
 # tokio-cron-scheduler
 
 Use cron-like scheduling in an async tokio environment.
-Also schedule tasks at an instant or repeat them at a fixed duration.
-Task's data can optionally be persisted using PostgreSQL or Nats.
+Also, schedule tasks instantly or repeat them at a fixed duration.
+Task data can optionally be persisted using PostgreSQL or Nats.
 
 Inspired by https://github.com/lholden/job_scheduler
 
 [![](https://docs.rs/tokio_cron_scheduler/badge.svg)](https://docs.rs/tokio_cron_scheduler) [![](https://img.shields.io/crates/v/tokio_cron_scheduler.svg)](https://crates.io/crates/tokio_cron_scheduler) [![](https://travis-ci.org/mvniekerk/tokio_cron_scheduler.svg?branch=master)](https://travis-ci.org/mvniekerk/tokio_cron_scheduler)
-
 
 ## Usage
 
@@ -31,19 +30,20 @@ sec   min   hour   day of month   month   day of week   year
 ```
 
 Time is specified for `UTC` and not your local timezone. Note that the year may
-be omitted.
+be omitted. If you want for your timezone, append `_tz` to the job creation calls (for instance
+Job::new_async vs Job::new_async_tz).
 
-Comma separated values such as `5,8,10` represent more than one time value. So
+Comma-separated values such as `5,8,10` represent more than one time value. So
 for example, a schedule of `0 2,14,26 * * * *` would execute on the 2nd, 14th,
 and 26th minute of every hour.
 
 Ranges can be specified with a dash. A schedule of `0 0 * 5-10 * *` would
-execute once per hour but only on day 5 through 10 of the month.
+execute once per hour but only on days 5 through 10 of the month.
 
-Day of the week can be specified as an abbreviation or the full name. A
-schedule of `0 0 6 * * Sun,Sat` would execute at 6am on Sunday and Saturday.
+The day of the week can be specified as an abbreviation or the full name. A
+schedule of `0 0 6 * * Sun,Sat` would execute at 6 am on Sunday and Saturday.
 
-Per job you can be notified when the jobs were started, stopped and removed. Because these notifications
+Per job, you can be notified when the jobs were started, stopped and removed. Because these notifications
 are scheduled using tokio::spawn, the order of these are not guaranteed if the task finishes quickly.
 
 A simple usage example:
@@ -132,11 +132,38 @@ async fn main() -> Result<(), JobSchedulerError> {
 
 ```
 
+### Timezone changes
+
+You can create a job using a specific timezone using the `JobBuilder` API.
+chrono-tz is not included into the dependencies, so you need to add it to your Cargo.toml if you
+would like to have easy creation of a `Timezone` struct.
+
+```rust 
+    let job = JobBuilder::new()
+.with_timezone(chrono_tz::Africa::Johannesburg)
+.with_cron_job_type()
+.with_schedule("*/2 * * * * *")
+.unwrap()
+.with_run_async(Box::new( | uuid, mut l| {
+Box::pin(async move {
+info ! ("JHB run async every 2 seconds id {:?}", uuid);
+let next_tick = l.next_tick_for_job(uuid).await;
+match next_tick {
+Ok(Some(ts)) => info !("Next time for JHB 2s is {:?}", ts),
+_ => warn !("Could not get next tick for 2s job"),
+}
+})
+}))
+.build()
+.unwrap();
+```
+
 ## Similar Libraries
 
 * [job_scheduler](https://github.com/lholden/job_scheduler) The crate that inspired this one
 * [cron](https://github.com/zslayton/cron) the cron expression parser we use.
-* [schedule-rs](https://github.com/mehcode/schedule-rs) is a similar rust library that implements it's own cron expression parser.
+* [schedule-rs](https://github.com/mehcode/schedule-rs) is a similar rust library that implements its own cron
+  expression parser.
 
 ## License
 
@@ -148,9 +175,11 @@ TokioCronScheduler is licensed under either of
   http://opensource.org/licenses/MIT)
 
 ## Custom storage
-The MetadataStore and NotificationStore traits can be implemented and be used in the JobScheduler. 
 
-A default volatile hashmap based version is provided with the SimpleMetadataStore and SimpleNotificationStore. A persistent version using Nats is provided with NatsMetadataStore and NatsNotificationStore.
+The MetadataStore and NotificationStore traits can be implemented and be used in the JobScheduler.
+
+A default volatile hashmap-based version is provided by the SimpleMetadataStore and SimpleNotificationStore. A
+persistent version using Nats is provided with NatsMetadataStore and NatsNotificationStore.
 
 ## Contributing
 
@@ -163,45 +192,55 @@ Please see the [CONTRIBUTING](CONTRIBUTING.md) file for more information.
 ## Features
 
 ### has_bytes
+
 Since 0.7
 
 Enables Prost-generated data structures to be used by stores that need to get the bytes
 of the data structs. The Nats and Postgres stores depend on this feature being enabled.
 
 ### postgres_storage
+
 Since 0.6
 
-Adds the Postgres metadata store, notification store (PostgresMetadataStore, PostgresNotificationStore). Use a Postgres database to store the metadata and notifications data. 
+Adds the Postgres metadata store and notification store (PostgresMetadataStore, PostgresNotificationStore). Use a Postgres
+database to store the metadata and notification data.
 
 See [PostgreSQL docs](./postgres.md)
 
 ### postgres_native_tls
+
 Since 0.6
 
 Uses postgres-native-tls crate as the TLS provider for the PostgreSQL connection.
 
 ### postgres_openssl
+
 Since 0.6
 
 Uses the postgres-openssl crate as the TLS provider for the PostgreSQL connection.
 
 ### nats_storage
+
 Since 0.6
 
-Adds the Nats metadata store, notification store (NatsMetadataStore, NatsNotificationStore). Use a Nats system as a way to store the metadata and notifications.
+Adds the Nats metadata store and notification store (NatsMetadataStore, NatsNotificationStore). Use a Nats system as a way
+to store the metadata and notifications.
 
 See [Nats docs](./nats.md)
 
 ### signal
+
 Since 0.5
 
 Adds `shutdown_on_signal` and `shutdown_on_ctrl_c` to the scheduler.
-Both shuts the system down (stops the scheduler, removes all the tasks) when a signal
-was received.
+Both shut the system down (stop the scheduler and remove all the tasks) when a signal
+is received.
+
+As this leverages the signal handling from Tokio, this is only available on Unix systems.
 
 ## Writing tests
 
-When doing a tokio::test, remember to have it run in a multi-threaded context otherwise the test
+When doing a tokio::test, remember to have it run in a multi-threaded context otherwise, the test
 will hang on `scheduler.add()`.
 
 For example:
@@ -234,7 +273,7 @@ mod test {
                         info!("Run every seconds");
                     })
                 })
-                .unwrap(),
+                    .unwrap(),
             )
             .await
             .expect("Should be able to add a job");
@@ -250,7 +289,7 @@ mod test {
 
 ### simple
 
-Runs the in-memory hashmap based storage
+Runs the in-memory hashmap-based storage
 
 ```shell
  cargo run --example simple --features="tracing-subscriber"
@@ -265,6 +304,7 @@ docker run --rm -it -p 5432:5432 -e POSTGRES_USER="postgres" -e POSTGRES_PASSWOR
 ```
 
 Then run the example:
+
 ```shell
 POSTGRES_INIT_METADATA=true POSTGRES_INIT_NOTIFICATIONS=true cargo run --example postgres --features="postgres_storage tracing-subscriber"
 ```
@@ -272,11 +312,13 @@ POSTGRES_INIT_METADATA=true POSTGRES_INIT_NOTIFICATIONS=true cargo run --example
 ### nats
 
 Needs a running Nats instance first with Jetstream enabled:
+
 ```shell
 docker run --rm -it -p 4222:4222 -p 6222:6222 -p 7222:7222 -p 8222:8222 nats -js -DV
 ```
 
 Then run the example:
+
 ```shell
 cargo run --example nats --features="nats_storage tracing-subscriber"
 ```
@@ -284,16 +326,21 @@ cargo run --example nats --features="nats_storage tracing-subscriber"
 ## Design
 
 ### Job activity
+
 ![Job activity](./doc/job_activity.svg)
 
 ### Create job
+
 ![Create job](./doc/create_job.svg)
 
 ### Create notification
+
 ![Create notification](./doc/create_notification.svg)
 
 ### Delete job
+
 ![Delete job](./doc/delete_job.svg)
 
 ### Delete notification
+
 ![Delete notification](./doc/delete_notification.svg)
